@@ -1,1 +1,11 @@
-
+const r=require('express').Router(),db=require('../db'),{auth,admin}=require('../middleware/auth');
+r.use(auth,admin);
+r.get('/orders',async(q,s)=>s.json((await db.query("select o.*,u.phone from coin_orders o join users u on u.id=o.user_id where o.status='pending' order by o.id")).rows));
+r.post('/orders/:id/approve',async(q,s)=>{const o=await db.query("update coin_orders set status='approved' where id=$1 and status='pending' returning *",[q.params.id]);
+if(o.rows[0])await db.query('update users set coins=coins+$1 where id=$2',[o.rows[0].coins,o.rows[0].user_id]);s.json({ok:1})});
+r.post('/orders/:id/reject',async(q,s)=>{await db.query("update coin_orders set status='rejected' where id=$1 and status='pending'",[q.params.id]);s.json({ok:1})});
+r.get('/withdrawals',async(q,s)=>s.json((await db.query("select w.*,u.phone from withdrawals w join users u on u.id=w.user_id where w.status='pending' order by w.id")).rows));
+r.post('/withdrawals/:id/paid',async(q,s)=>{await db.query("update withdrawals set status='paid' where id=$1 and status='pending'",[q.params.id]);s.json({ok:1})});
+r.post('/withdrawals/:id/reject',async(q,s)=>{const w=await db.query("update withdrawals set status='rejected' where id=$1 and status='pending' returning *",[q.params.id]);
+if(w.rows[0])await db.query('update users set earned=earned+$1 where id=$2',[w.rows[0].birr,w.rows[0].user_id]);s.json({ok:1})});
+module.exports=r;

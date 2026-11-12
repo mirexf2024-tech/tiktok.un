@@ -1,0 +1,11 @@
+const r=require('express').Router(),bcrypt=require('bcryptjs'),jwt=require('jsonwebtoken'),db=require('../db'),{auth}=require('../middleware/auth');
+const tok=u=>jwt.sign({id:u.id,role:u.role},process.env.JWT_SECRET,{expiresIn:'30d'});
+r.post('/register',async(q,s)=>{const{phone,name,password}=q.body;
+if(!/^\+251[79]\d{8}$/.test(phone||'')||!name||(password||'').length<6)return s.status(400).json({error:'+2519xxxxxxxx, maqaa fi password (6+) galchi'});
+try{const role=phone===process.env.ADMIN_PHONE?'admin':'user';
+const{rows}=await db.query('insert into users(phone,name,pass_hash,role) values($1,$2,$3,$4) returning id,role',[phone,name,await bcrypt.hash(password,10),role]);
+s.json({token:tok(rows[0])})}catch{s.status(400).json({error:'Lakkoofsi kun galmaa’eera'})}});
+r.post('/login',async(q,s)=>{const{rows}=await db.query('select * from users where phone=$1',[q.body.phone]);const u=rows[0];
+if(!u||!await bcrypt.compare(q.body.password||'',u.pass_hash))return s.status(400).json({error:'Lakkoofsi ykn password dogoggora'});s.json({token:tok(u)})});
+r.get('/me',auth,async(q,s)=>s.json((await db.query('select id,name,phone,role,coins,earned from users where id=$1',[q.user.id])).rows[0]));
+module.exports=r;

@@ -1,0 +1,13 @@
+const r=require('express').Router(),db=require('../db'),{auth}=require('../middleware/auth'),{MIN_WITHDRAW}=require('../config');
+r.use(auth);
+r.get('/dashboard',async(q,s)=>{const u=[q.user.id];
+const e=(await db.query('select earned from users where id=$1',u)).rows[0];
+const n=(await db.query('select (select count(*)::int from videos where user_id=$1) videos,(select count(*)::int from follows where following_id=$1) followers,(select count(*)::int from gifts where to_id=$1) gifts',u)).rows[0];
+const recent=(await db.query('select u.name,g.coins from gifts g join users u on u.id=g.from_id where g.to_id=$1 order by g.id desc limit 10',u)).rows;
+s.json({earned:e.earned,...n,recent,min:MIN_WITHDRAW})});
+r.post('/withdraw',async(q,s)=>{const b=Math.floor(+q.body.birr),{method,account}=q.body;
+if(!(b>=MIN_WITHDRAW)||!method||!account)return s.status(400).json({error:'Hanga min '+MIN_WITHDRAW+' fi akaawuntii galchi'});
+const p=await db.query('update users set earned=earned-$1 where id=$2 and earned>=$1 returning id',[b,q.user.id]);
+if(!p.rowCount)return s.status(400).json({error:'Maallaqni ga’aa miti'});
+await db.query('insert into withdrawals(user_id,birr,method,account) values($1,$2,$3,$4)',[q.user.id,b,String(method).slice(0,20),String(account).slice(0,60)]);s.json({ok:1})});
+module.exports=r;
